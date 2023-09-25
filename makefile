@@ -22,4 +22,4 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 include $(wildcard $(DEP_DIR)/*.d)
 
 clean:
-    rm -rf $(DEP_DIR)/* $(OBJ_DIR)/* $(BIN_DIR)/*
+    rm -rf $(DEP_DIR)/* $(OBJ_DIR)/*.o $(BIN_DIR)/*
