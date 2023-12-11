@@ -1,40 +1,78 @@
+#  * Grupo 50
+#  * Filipe Costa - 55549
+#  * Yichen Cao - 58165
+#  * Emily Sá - 58200
+#  * Github repo: https://github.com/padrezulmiro/sd-projeto/
 .PRECIOUS: object/%.o object/test_%.o
 BIN_DIR = binary
 INC_DIR = include
-LIB_DIR = library
+LIB_DIR = lib
 OBJ_DIR = object
 SRC_DIR = source
 DEP_DIR = dependencies
 TEST_DIR = tests
 
-TARGETS = data entry list serialization table
-EXECS = $(foreach target,$(TARGETS),$(BIN_DIR)/test_$(target))
-OBJS = $(foreach target,$(TARGETS),$(OBJ_DIR)/test_$(target).o)
+$(shell mkdir -p $(BIN_DIR) >/dev/null)
+$(shell mkdir -p $(DEP_DIR) >/dev/null)
+$(shell mkdir -p $(OBJ_DIR) >/dev/null)
+$(shell mkdir -p $(LIB_DIR) >/dev/null)
 
-binary/test_data :=
-binary/test_entry := object/data.o
-binary/test_list := object/data.o object/entry.o
-binary/test_serialization := object/data.o object/entry.o object/list.o
-binary/test_table := object/data.o object/list.o object/entry.o
-
+LIB_TABLE_R = $(addprefix $(OBJ_DIR)/,data.o entry.o list.o table.o) 
+TABLE_CLIENT_R = $(addprefix $(OBJ_DIR)/,data.o \
+	entry.o \
+	mutex.o \
+	table_client.o \
+	client_callbacks.o\
+	sdmessage.pb-c.o \
+	message.o\
+	client_stub.o \
+	network_client.o \
+	stats.o)
+TABLE_SERVER_R = $(addprefix $(OBJ_DIR)/,data.o \
+	entry.o \
+	mutex.o \
+	list.o \
+	table.o \
+	address.o \
+	server_callbacks.o\
+	sdmessage.pb-c.o \
+	message.o\
+	client_stub.o \
+	network_client.o \
+	table_server.o \
+	table_skel.o \
+	network_server.o \
+	server_thread.o \
+	stats.o)
+# CFLAGS = -Wall -Werror -g -MMD -MP -MF -I $(INC_DIR)
 
 CC = gcc
-# CFLAGS = -Wall -Werror -g -MMD -MP -MF -I $(INC_DIR)
-CFLAGS = -Wall -Werror -g -I $(INC_DIR)
+CFLAGS = -Wall -Werror -g -MMD -MP -I $(INC_DIR) -pthread
+ARCHIVE = ar -rcs
+PROTO_LIB = -I/usr/local/include -L/usr/local/lib -lprotobuf-c -D THREADED
 
-compile: $(EXECS)
+all: $(LIB_DIR)/libtable.a $(addprefix $(BIN_DIR)/,table_client \
+												table_server)
 
-$(BIN_DIR)/test_%: $($@) $(OBJ_DIR)/test_%.o $(OBJ_DIR)/%.o
-	$(CC) $^ $($@) -o $@
+$(SRC_DIR)/sdmessage.pb-c.c: sdmessage.proto
+	protoc-c --c_out=. sdmessage.proto
+	mv sdmessage.pb-c.c $(SRC_DIR)
+	mv sdmessage.pb-c.h $(INC_DIR)
+
+$(LIB_DIR)/libtable.a: $(LIB_TABLE_R)
+	$(ARCHIVE) $@ $^
+
+$(BIN_DIR)/table_client: $(TABLE_CLIENT_R)
+	$(CC) $^ $(PROTO_LIB) $(LIB_DIR)/libtable.a -o $@  -lzookeeper_mt
+
+$(BIN_DIR)/table_server: $(TABLE_SERVER_R)
+	$(CC) $^ $(PROTO_LIB) $(LIB_DIR)/libtable.a -o $@ -lzookeeper_mt
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJ_DIR)/test_%.o: $(SRC_DIR)/test_%.c
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -MF $(DEP_DIR)/$*.d -c $< -o $@ 
 
 # Include makefiles from dependencies
 include $(wildcard $(DEP_DIR)/*.d)
 
 clean:
-	rm $(OBJ_DIR)/*.o $(BIN_DIR)/test_*
+	rm $(OBJ_DIR)/*.o $(DEP_DIR)/*.d $(LIB_DIR)/*.a $(BIN_DIR)/*
